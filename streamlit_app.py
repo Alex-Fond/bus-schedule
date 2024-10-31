@@ -334,7 +334,7 @@ uploaded_schedule = st.file_uploader("Upload bus schedule (Excel)", type="xlsx")
 if uploaded_schedule is not None:
     global df_schedule, bus_count
     df_schedule = pd.read_excel(uploaded_schedule, names=["activity_number", "start_location", "end_location", "start_time", "end_time", "activity", "bus_line", "energy_usage", "start_time_long", "end_time_long", "bus_number"])
-    st.write(uploaded_schedule.name)
+    st.write(f"Loaded {uploaded_schedule.name}")
     bus_count = df_schedule["bus_number"].nunique()
 
 uploaded_timetable = st.file_uploader("Upload timetable to satisfy (Excel)", type="xlsx")
@@ -342,7 +342,7 @@ uploaded_timetable = st.file_uploader("Upload timetable to satisfy (Excel)", typ
 if uploaded_timetable is not None:
     global df_timetable
     df_timetable = pd.read_excel(uploaded_timetable, names=["start_location", "start_time", "end_location", "bus_line"])
-    st.write(uploaded_timetable.name)
+    st.write(f"Loaded {uploaded_timetable.name}")
 
 if st.button("Check uploaded bus schedule") and uploaded_schedule != None and uploaded_timetable != None:
     check_schedule()
