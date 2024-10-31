@@ -4,6 +4,8 @@ import time
 import datetime
 import math
 import json
+import numpy as np
+import matplotlib.pyplot as plt
 
 # The functions to actually check stuff
 def safety_margin(activity):
@@ -25,16 +27,27 @@ def safety_margin(activity):
         return False
     return True
 
+def validate_times():
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
+    for activity in df_schedule["activity_number"]:
+        timespan = calc_time_activity(activity)
+        if timespan < 0:
+            timespan = 0
+            st.write(f":red[Error]: activity {activity} ends before it starts (negative duration), activity ignored")
+        elif timespan == 0:
+            st.write(f":orange[Warning]: activity {activity} ends at the same time as it starts (duration of 0), activity ignored")
+
 ###############################################################################################################################################################
 def calc_battery(activity):
     with open('bus.json') as f:
         bus_settings = json.load(f)
     with open('tool.json') as f:
         tool_settings = json.load(f)
-    start = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
-    end = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1:-4]
+    timespan = calc_time_activity(activity)
     bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:-4])
-    time_delta = datetime.timedelta(end-start).total_seconds/3600
     string = f"bus_{bus}_custom_usage"
     if bus_settings[string] == True:
         usage = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "usage"]).split()[1:-4])
@@ -89,19 +102,18 @@ def calc_time_activity(activity):
         bus_settings = json.load(f)
     with open('tool.json') as f:
         tool_settings = json.load(f)
-    start_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time"]).split()[1:-4]
-    start_time = start_time_list[0]
-    end_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time"]).split()[1:-4]
-    end_time = end_time_list[0]
-    start = datetime.datetime(*time.strptime(start_time, "%H:%M:%S")[0:6])
-    end = datetime.datetime(*time.strptime(end_time, "%H:%M:%S")[0:6])
+    start_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
+    if len(start_time_list) == 1:
+        start_time_list.append("00:00:00")
+    start_time = start_time_list[0] + " " + start_time_list[1]
+    end_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1:-4]
+    if len(end_time_list) == 1:
+        end_time_list.append("00:00:00")
+    end_time = end_time_list[0] + " " + end_time_list[1]
+    start = datetime.datetime(*time.strptime(start_time, "%Y-%m-%d %H:%M:%S")[0:6])
+    end = datetime.datetime(*time.strptime(end_time, "%Y-%m-%d %H:%M:%S")[0:6])
     difference = end - start
     timespan = difference.total_seconds()/60/60
-    if timespan < 0:
-        timespan = 0
-        st.write(f":red[Error]: activity {activity} ends before it starts (negative duration), activity ignored")
-    elif timespan == 0:
-        st.write(f":red[Error]: activity {activity} ends at the same time as it starts (duration of 0), activity ignored")
     return timespan
 
 def calc_charge_time_minimum(activity):
@@ -123,14 +135,15 @@ def calc_dpru_dru():
         bus_settings = json.load(f)
     with open('tool.json') as f:
         tool_settings = json.load(f)
-    st.write(bus_settings, tool_settings)
     dpru = 0
     dru = 0
     for activity in df_schedule["activity_number"]:
         timespan = calc_time_activity(activity)
+        if timespan < 0:
+            timespan = 0
         dpru += timespan
         active = bus_settings["active_name"].split()
-        if str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4] == active:
+        if str(df_schedule.loc[df_schedule["activity_number"] == activity, "activity"]).split()[1:-4] == active:
             dru += timespan
     if dru == 0:
         st.write(f":red[Error]: no activities with name {bus_settings['active_name']} found with duration greater than 0")
@@ -151,6 +164,7 @@ def check_schedule():
     df_timetable["satisfied"] = 0
     df_timetable["index"] = range(len(df_timetable.index))
     errorless = True
+    validate_times()
     for activity in df_schedule.sort_values(by="start_time_long")["activity_number"]:
         #calc_battery(activity)
         #erroring = safety_margin()
@@ -159,8 +173,8 @@ def check_schedule():
         progress_current += 1
         check_progress.progress(progress_current/progress_max)
     check_timetable()
-    if errorless == True:
-        chart()
+    #if errorless == True:
+        #chart()
     dpru_dru = calc_dpru_dru()
     if dpru_dru != 0:
         st.write(f"Calculated DPRU/DRU ratio: {dpru_dru}:1")
@@ -182,6 +196,29 @@ def chart():
         bus_settings = json.load(f)
     with open('tool.json') as f:
         tool_settings = json.load(f)
+    fig, ax = plt.subplots(figsize=(20, 5))
+    busses = []
+    for i in range(len(df_schedule["bus_number"].nunique())):
+        busses.append(f"Bus {i+1}")
+    for bus in busses:
+        ax.barh(int(bus[4:]), 0)
+        prev_x = 0
+        for activity in df_schedule[df_schedule.bus_number==bus[4:]].sort_values(by="start_date_long")["activity_number"]:
+            start = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time"]).split()[1:-4]
+            end = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time"]).split()[1:-4]
+            color = str(df_orders_chart.loc[df_orders_chart["Order"] == order, "Color"]).split()[1]
+            if color == "Yellow":
+                color = "y"
+            else:
+                color = f"tab:{str(color).lower()}"
+            ax.barh(int(machine[1:]), setup, left=prev_x, color="k")
+            ax.barh(int(machine[1:]), process, left=prev_x+setup, color=color)
+            prev_x = end
+    ax.set_ylabel("Machine")
+    ax.set_xlabel("Time")
+    ax.set_title(file_name)
+    ax.set_yticks(np.arange(len(machines))+1, labels=machines)
+    ax.invert_yaxis()
     return
 
 st.title("My app")
@@ -255,7 +292,6 @@ with st.popover("Open schedule settings"):
             bus_settings[bus_string] = st.number_input(f"Bus {i+1} - Usage (kWh) - active", value=default_active, min_value=0., step=1.)
             bus_string = f"bus_{i+1}_custom_usage"
             bus_settings[bus_string] = st.checkbox(f"Bus {i+1} - use usage values in imported Excel sheet instead of these settings", value=default_custom_usage)
-        st.write(bus_settings)
         with open('bus.json', 'w') as f:
             json.dump(bus_settings, f)
     else:
