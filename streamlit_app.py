@@ -9,31 +9,99 @@ import json
 
 # The functions to actually check stuff
 def safety_margin(activity):
-    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1])
-    battery = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "battery"]).split()[1])
+    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:-4])
+    battery = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "battery"]).split()[1:-4])
     string = f"bus_{bus}_soh"
     soh = bus_settings[string]
     battery_minimum = minimum_soc
     battery_maximum = maximum_soc
-    if battery < battery_minimum * soh:
-        st.write(f"Error: Bus {bus} reaches below required minimum battery charge during activity {activity}")
+    if battery * soh < battery_minimum:
+        st.write(f":red[Error]: Bus {bus} reaches below required minimum battery charge during activity {activity}")
         return False
-    elif battery > battery_maximum * soh:
-        st.write(f"Error: Bus {bus} above required maximum battery charge during activity {activity}")
+    elif battery * soh > battery_maximum:
+        st.write(f":red[Error]: Bus {bus} above required maximum battery charge during activity {activity}")
         return False
     return True
 
+###############################################################################################################################################################
 def calc_battery(activity):
-    start = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1]
-    end = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1]
-    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1])
+    start = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
+    end = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1:-4]
+    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:-4])
     time_delta = datetime.timedelta(end-start).total_seconds/3600
     string = f"bus_{bus}_custom_usage"
     if bus_settings[string] == True:
-        usage = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "usage"]).split()[1])
+        usage = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "usage"]).split()[1:-4])
     else:
-        print("hello world hi 1 2 3".split()[1:-3])
-        act = str(df_schedule.loc[df_schedule["activity_number"] == activity, "activity"]).split()[1]
+        act = str(df_schedule.loc[df_schedule["activity_number"] == activity, "activity"]).split()[1:-4]
+
+def calc_charging_speed(activity):
+    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:-4])
+    string = f"bus_{bus}_custom_usage"
+    if bus_settings[string] == True:
+        return float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "usage"]).split()[1:-4])
+    else:
+        battery = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "battery"]).split()[1:-4])
+        if battery <= optimal_charge[1] and battery >= optimal_charge[0]:
+            timetil = calc_time_until_perc(bus, battery, optimal_charge[1], charge_speed_optimal)
+            timespan = calc_time_activity(activity)
+            if timespan <= timetil:
+                return charge_speed_optimal
+            else:
+                speed = ((timespan * charge_speed_optimal) + ((timetil-timespan) * charge_speed_suboptimal)) / (timespan + timetil)
+                return speed
+        elif battery >= optimal_charge[1]:
+            return charge_speed_suboptimal
+        elif battery <= optimal_charge[0]:
+            timetil = calc_time_until_perc(bus, battery, optimal_charge[0], charge_speed_suboptimal)
+            timespan = calc_time_activity(activity)
+            if timespan <= timetil:
+                return charge_speed_suboptimal
+            else:
+                speed = ((timespan * charge_speed_suboptimal) + ((timetil-timespan) * charge_speed_optimal)) / (timespan + timetil)
+                return speed
+
+def calc_time_until_perc(bus, battery, charge, charge_speed):
+    string = f"bus_{bus}_soh"
+    soh = bus_settings[string]
+    string = f"bus_{bus}_battery_max"
+    max_charge = bus_settings[string]
+    dif = (charge - battery) * max_charge * soh
+    timespan = dif/charge_speed
+    return timespan
+
+def calc_time_activity(activity):
+    start_time = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time"]).split()[1:-4]
+    end_time = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time"]).split()[1:-4]
+    start = datetime.datetime(*time.strptime(start_time, "%H:%M:%S")[0:6])
+    end = datetime.datetime(*time.strptime(end_time, "%H:%M:%S")[0:6])
+    difference = end - start
+    timespan = difference.total_seconds()/60/60
+    if timespan < 0:
+        timespan = 0
+        st.write(f":red[Error]: activity {activity} ends before it starts (negative duration), activity ignored")
+    elif timespan == 0:
+        st.write(f":red[Error]: activity {activity} ends at the same time as it starts (duration of 0), activity ignored")
+    return timespan
+
+def calc_charge_time_minimum(activity):
+    return calc_time_activity(activity) >= min_charge_time
+
+def check_overlapping_activities(bus):
+    return
+
+def calc_dpru_dru():
+    dpru = 0
+    dru = 0
+    for activity in df_schedule["activity_number"]:
+        timespan = calc_time_activity(activity)
+        dpru += timespan
+        if str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4] == active_name.split():
+            dru += timespan
+    if dru == 0:
+        st.write(f":red[Error]: no activities with name {active_name} found with duration greater than 0")
+        return 0
+    return dpru/dru
 
 # Full schedule check
 def check_schedule():
@@ -44,11 +112,20 @@ def check_schedule():
     df_schedule["battery"] = 0
     df_timetable["satisfied"] = 0
     df_timetable["index"] = range(len(df_timetable.index))
+    errorless = True
     for activity in df_schedule.sort_values(by="start_time_long")["activity_number"]:
         #calc_battery(activity)
+        #erroring = safety_margin()
+        #if errorless == True:
+            #errorless = erroring
         progress_current += 1
         check_progress.progress(progress_current/progress_max)
     check_timetable()
+    if errorless == True:
+        chart()
+    dpru_dru = calc_dpru_dru()
+    if dpru_dru != 0:
+        st.write(f"Calculated DPRU/DRU ratio: {dpru_dru}:1")
 
 # Full timetable check
 def check_timetable():
@@ -57,7 +134,9 @@ def check_timetable():
         progress_current += 1
         check_progress.progress(progress_current/progress_max)
 
-
+# Create Gannt chart
+def chart():
+    return
 
 st.title("My app")
 st.write(
@@ -85,7 +164,8 @@ if st.button("Check uploaded bus schedule") and uploaded_schedule != None and up
     check_schedule()
 
 with st.popover("Open tool settings"):
-    st.write("State of Health")
+    st.write("State of Charge")
+    st.write(":red[Warning: if you set any bus to have a SoC outside of this range it will generate an error!]")
     minimum_soc = st.number_input("Minimum State of Charge (0-1)", value=0.1, min_value=0., max_value=1., step=0.05)
     maximum_soc = st.number_input("Maximum State of Charge (0-1)", value=0.9, min_value=max(0., minimum_soc), max_value=1., step=0.05)
     st.write("Charging")
@@ -105,6 +185,7 @@ with st.popover("Open tool settings"):
 with st.popover("Open schedule settings"):
     if uploaded_schedule is not None:
         st.subheader("Activity settings")
+        active_name = st.text_input("Activity name - active (for DPRU/DRU)", value="idle")
         idle_name = st.text_input("Activity name - idling", value="idle")
         charge_name = st.text_input("Activity name - charging", value="charging")
         ignore_charge_name = st.checkbox("Ignore set charging name and instead use negative usage :red[(requires custom usage values to be turned on)]")
@@ -116,16 +197,16 @@ with st.popover("Open schedule settings"):
             st.write(f"Bus {i+1}")
             bus_string = f"bus_{i+1}_soh"
             bus_settings[bus_string] = st.number_input(f"Bus {i+1} - State of Health", value=default_soh, min_value=0., max_value=1., step=0.05)
+            bus_string = f"bus_{i+1}_battery_max"
+            bus_settings[bus_string] = st.number_input(f"Bus {i+1} - battery capacity at 100% State of Health (kWh)", value=default_battery, min_value=0., step=10.)
+            bus_string = f"bus_{i+1}_battery_start"
+            bus_settings[bus_string] = st.number_input(f"Bus {i+1} - battery percentage at the start of the schedule", value=default_battery_start, min_value=0., max_value=1., step=0.01)
             bus_string = f"bus_{i+1}_idle"
             bus_settings[bus_string] = st.number_input(f"Bus {i+1} - Usage (kWh) - idle", value=default_idle, min_value=0., step=0.1)
             bus_string = f"bus_{i+1}_active"
             bus_settings[bus_string] = st.number_input(f"Bus {i+1} - Usage (kWh) - active", value=default_active, min_value=0., step=1.)
             bus_string = f"bus_{i+1}_custom_usage"
             bus_settings[bus_string] = st.checkbox(f"Bus {i+1} - use usage values in imported Excel sheet instead of these settings", value=default_custom_usage)
-            bus_string = f"bus_{i+1}_battery_max"
-            bus_settings[bus_string] = st.number_input(f"Bus {i+1} - battery capacity at 100% State of Health (kWh)", value=default_battery, min_value=0., step=10.)
-            bus_string = f"bus_{i+1}_battery_start"
-            bus_settings[bus_string] = st.number_input(f"Bus {i+1} - battery percentage at the start of the schedule", value=default_battery_start, min_value=0., max_value=1., step=0.01)
     else:
         st.write("Please upload a schedule first.")
 
