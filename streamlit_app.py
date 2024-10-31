@@ -5,10 +5,12 @@ import datetime
 import math
 import json
 
-
-
 # The functions to actually check stuff
 def safety_margin(activity):
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:-4])
     battery = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "battery"]).split()[1:-4])
     string = f"bus_{bus}_soh"
@@ -25,6 +27,10 @@ def safety_margin(activity):
 
 ###############################################################################################################################################################
 def calc_battery(activity):
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     start = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
     end = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1:-4]
     bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:-4])
@@ -36,6 +42,10 @@ def calc_battery(activity):
         act = str(df_schedule.loc[df_schedule["activity_number"] == activity, "activity"]).split()[1:-4]
 
 def calc_charging_speed(activity):
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:-4])
     string = f"bus_{bus}_custom_usage"
     if bus_settings[string] == True:
@@ -62,6 +72,10 @@ def calc_charging_speed(activity):
                 return speed
 
 def calc_time_until_perc(bus, battery, charge, charge_speed):
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     string = f"bus_{bus}_soh"
     soh = bus_settings[string]
     string = f"bus_{bus}_battery_max"
@@ -71,6 +85,10 @@ def calc_time_until_perc(bus, battery, charge, charge_speed):
     return timespan
 
 def calc_time_activity(activity):
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     start_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time"]).split()[1:-4]
     start_time = start_time_list[0]
     end_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time"]).split()[1:-4]
@@ -87,18 +105,32 @@ def calc_time_activity(activity):
     return timespan
 
 def calc_charge_time_minimum(activity):
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     return calc_time_activity(activity) >= tool_settings["min_charge_time"]
 
 def check_overlapping_activities(bus):
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     return
 
 def calc_dpru_dru():
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
+    st.write(bus_settings, tool_settings)
     dpru = 0
     dru = 0
     for activity in df_schedule["activity_number"]:
         timespan = calc_time_activity(activity)
         dpru += timespan
-        if str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4] == bus_settings["active_name"].split():
+        active = bus_settings["active_name"].split()
+        if str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4] == active:
             dru += timespan
     if dru == 0:
         st.write(f":red[Error]: no activities with name {bus_settings['active_name']} found with duration greater than 0")
@@ -107,6 +139,10 @@ def calc_dpru_dru():
 
 # Full schedule check
 def check_schedule():
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     global progress_max, progress_current, check_progress
     progress_max = len(df_schedule.index) + len(df_timetable.index)
     progress_current = 0
@@ -131,6 +167,10 @@ def check_schedule():
 
 # Full timetable check
 def check_timetable():
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     global progress_max, progress_current, check_progress
     for index in df_timetable["index"]:
         progress_current += 1
@@ -138,6 +178,10 @@ def check_timetable():
 
 # Create Gannt chart
 def chart():
+    with open('bus.json') as f:
+        bus_settings = json.load(f)
+    with open('tool.json') as f:
+        tool_settings = json.load(f)
     return
 
 st.title("My app")
@@ -153,20 +197,19 @@ if uploaded_schedule is not None:
     st.write(uploaded_schedule.name)
     bus_count = df_schedule["bus_number"].nunique()
 
-uploaded_distances = st.file_uploader("Upload timetable to satisfy (Excel)", type="xlsx")
+uploaded_timetable = st.file_uploader("Upload timetable to satisfy (Excel)", type="xlsx")
 
-if uploaded_distances is not None:
+if uploaded_timetable is not None:
     global df_timetable
-    df_timetable = pd.read_excel(uploaded_distances, names=["start_location", "start_time", "end_location", "bus_line"])
-    st.write(uploaded_distances.name)
+    df_timetable = pd.read_excel(uploaded_timetable, names=["start_location", "start_time", "end_location", "bus_line"])
+    st.write(uploaded_timetable.name)
 
-if st.button("Check uploaded bus schedule") and uploaded_schedule != None and uploaded_distances != None:
+if st.button("Check uploaded bus schedule") and uploaded_schedule != None and uploaded_timetable != None:
     st.write(df_schedule.head())
     st.write(df_timetable.head())
     check_schedule()
 
 with st.popover("Open tool settings"):
-    global tool_settings
     tool_settings = json.loads("{}")
     st.write("State of Charge")
     st.write(":red[Warning: if you set any bus to have a SoC outside of this range it will generate an error!]")
@@ -185,13 +228,14 @@ with st.popover("Open tool settings"):
     default_idle = st.number_input("Default usage (kWh) - idle", value=0.01, min_value=0., step=0.01)
     default_active = st.number_input("Default usage (kWh) - active", value=10.8, min_value=0., step=1.)
     default_custom_usage = st.checkbox("By default use usage values in imported Excel sheet instead of these settings")
+    with open('tool.json', 'w') as f:
+        json.dump(tool_settings, f)
 
 with st.popover("Open schedule settings"):
     if uploaded_schedule is not None:
-        global bus_settings
         bus_settings = json.loads("{}")
         st.subheader("Activity settings")
-        bus_settings["active_name"] = st.text_input("Activity name - active (for DPRU/DRU)", value="idle")
+        bus_settings["active_name"] = st.text_input("Activity name - active (for DPRU/DRU)", value="driving")
         bus_settings["idle_name"] = st.text_input("Activity name - idling", value="idle")
         bus_settings["charge_name"] = st.text_input("Activity name - charging", value="charging")
         bus_settings["ignore_charge_name"] = st.checkbox("Ignore set charging name and instead use negative usage :red[(requires custom usage values to be turned on)]")
@@ -211,6 +255,9 @@ with st.popover("Open schedule settings"):
             bus_settings[bus_string] = st.number_input(f"Bus {i+1} - Usage (kWh) - active", value=default_active, min_value=0., step=1.)
             bus_string = f"bus_{i+1}_custom_usage"
             bus_settings[bus_string] = st.checkbox(f"Bus {i+1} - use usage values in imported Excel sheet instead of these settings", value=default_custom_usage)
+        st.write(bus_settings)
+        with open('bus.json', 'w') as f:
+            json.dump(bus_settings, f)
     else:
         st.write("Please upload a schedule first.")
 
