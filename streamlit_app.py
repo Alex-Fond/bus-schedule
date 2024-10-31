@@ -237,12 +237,14 @@ def check_schedule():
             progress_current += 1
             check_progress.progress(progress_current/progress_max)
             prev_act = activity
-    #check_timetable()
+    check_timetable()
     if errorless == True:
         chart()
+    else:
+        st.write("Submit a valid schedule to see the generated Gannt chart for it")
     dpru_dru = calc_dpru_dru()
     if dpru_dru != 0:
-        st.write(f"Calculated DPRU/DRU ratio: {dpru_dru}:1")
+        st.write(f"Calculated DPRU/DRU ratio: {dpru_dru} used hours per productive hour")
 
 # Full timetable check
 def check_timetable():
@@ -348,7 +350,7 @@ if st.button("Check uploaded bus schedule") and uploaded_schedule != None and up
 with st.popover("Open tool settings"):
     tool_settings = json.loads("{}")
     st.write("State of Charge")
-    st.write(":red[Warning: if you set any bus to have a SoC outside of this range it will generate an error!]")
+    st.write(":orange[Warning: if you set any bus to have a SoC outside of this range it will generate an error!]")
     tool_settings["minimum_soc"] = st.number_input("Minimum State of Charge (0-1)", value=0.1, min_value=0., max_value=1., step=0.05)
     tool_settings["maximum_soc"] = st.number_input("Maximum State of Charge (0-1)", value=0.9, min_value=max(0., tool_settings["minimum_soc"]), max_value=1., step=0.05)
     st.write("Charging")
@@ -357,7 +359,7 @@ with st.popover("Open tool settings"):
     tool_settings["charge_speed_suboptimal"] = st.number_input("Charging speed outside optimal battery range (kWh)", value=60., min_value=0., step=10.)
     tool_settings["min_charge_time"] = st.number_input("Minimum charge time (minutes)", value=15., min_value=0., step=5.)
     st.write("Default schedule settings")
-    st.write(":red[Warning: changing these settings below will reset their respective values in your schedule settings!]")
+    st.write(":orange[Warning: changing these settings below will reset their respective values in your schedule settings!]")
     default_battery = st.number_input("Default battery capacity at 100% State of Health (kWh)", value=100., min_value=0., step=10.)
     default_battery_start = st.number_input("Default battery percentage at the start of the schedule (0-1)", value=1., min_value=0., max_value=1., step=0.01)
     default_soh = st.number_input("Default State of Health (0-1)", value=0.85, min_value=0., max_value=1., step=0.05)
