@@ -252,14 +252,30 @@ def check_timetable():
         tool_settings = json.load(f)
     global progress_max, progress_current, check_progress
     for entry in df_timetable.index:
+        satisfied = False
         start_location = df_timetable["start_location"][entry]
         end_location = df_timetable["end_location"][entry]
         start_time = df_timetable["start_time"][entry]
         bus_line = df_timetable["bus_line"][entry]
-        df_temp = df_schedule[df_schedule["start_location"] == start_location, df_schedule["end_location"] == end_location]
-        for activity in df_temp:
-            option = df_temp.loc[df_temp["bus_line"] == bus_line, "start_time"]
-            print(option)
+        for activity in df_schedule.sort_values(by="start_time_long")["activity_number"]:
+            if satisfied == False:
+                start_location2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_location"]).split()[1:-4]
+                start_location2 = " ".join(start_location2)
+                if start_location == start_location2:
+                    end_location2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_location"]).split()[1:-4]
+                    end_location2 = " ".join(end_location2)
+                    if end_location == end_location2:
+                        start_time2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time"]).split()[1][:-3]
+                        if start_time == start_time2:
+                            bus_line2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_line"]).split()[1]
+                            try:
+                                bus_line2 = int(bus_line2)
+                            except ValueError:
+                                bus_line2 = 0
+                            if bus_line == bus_line2 or bus_line2 == 0:
+                                satisfied = True
+        if satisfied == False:
+            st.write(f":red[Error]: Bus line {bus_line} from {start_location} to {end_location} at {start_time} is not accounted for")
         progress_current += 1
         check_progress.progress(progress_current/progress_max)
 
