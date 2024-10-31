@@ -6,6 +6,7 @@ import math
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 # The functions to actually check stuff
 def safety_margin(battery):
@@ -236,10 +237,9 @@ def check_schedule():
             progress_current += 1
             check_progress.progress(progress_current/progress_max)
             prev_act = activity
-    st.write(df_schedule.head())
-    check_timetable()
-    #if errorless == True:
-        #chart()
+    #check_timetable()
+    if errorless == True:
+        chart()
     dpru_dru = calc_dpru_dru()
     if dpru_dru != 0:
         st.write(f"Calculated DPRU/DRU ratio: {dpru_dru}:1")
@@ -285,29 +285,41 @@ def chart():
         bus_settings = json.load(f)
     with open('tool.json') as f:
         tool_settings = json.load(f)
-    fig, ax = plt.subplots(figsize=(20, 5))
+    fig, ax = plt.subplots(figsize=(20, 10))
     busses = []
-    for i in range(len(df_schedule["bus_number"].nunique())):
+    for i in range(df_schedule["bus_number"].nunique()):
         busses.append(f"Bus {i+1}")
+    max_x = datetime.datetime(*time.strptime("0001-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")[0:6])
+    min_x = datetime.datetime(*time.strptime("9999-12-31 23:59:59", "%Y-%m-%d %H:%M:%S")[0:6])
     for bus in busses:
         ax.barh(int(bus[4:]), 0)
-        prev_x = 0
-        for activity in df_schedule[df_schedule.bus_number==bus[4:]].sort_values(by="start_date_long")["activity_number"]:
+        for activity in df_schedule[df_schedule.bus_number==int(bus[4:])].sort_values(by="start_time_long")["activity_number"]:
             start = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
+            if len(start) == 1:
+                start.append("00:00:00")
+            start = " ".join(start)
+            start = datetime.datetime(*time.strptime(start, "%Y-%m-%d %H:%M:%S")[0:6])
+            if start < min_x:
+                min_x = start
+            start_time = mpl.dates.date2num(start)
             end = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1:-4]
-            color = str(df_orders_chart.loc[df_orders_chart["Order"] == order, "Color"]).split()[1]
-            if color == "Yellow":
-                color = "y"
-            else:
-                color = f"tab:{str(color).lower()}"
-            ax.barh(int(machine[1:]), setup, left=prev_x, color="k")
-            ax.barh(int(machine[1:]), process, left=prev_x+setup, color=color)
-            prev_x = end
-    ax.set_ylabel("Machine")
+            if len(end) == 1:
+                end.append("00:00:00")
+            end = " ".join(end)
+            end = datetime.datetime(*time.strptime(end, "%Y-%m-%d %H:%M:%S")[0:6])
+            if end > max_x:
+                max_x = end
+            end_time = mpl.dates.date2num(end)
+            timespan = end_time-start_time
+            ax.barh(y=int(bus[4:]), width=timespan, left=start_time)
+    ax.set_ylabel("Bus")
     ax.set_xlabel("Time")
-    ax.set_title(file_name)
-    ax.set_yticks(np.arange(len(machines))+1, labels=machines)
+    ax.set_xlim([min_x, max_x])
+    ax.xaxis_date()
+    ax.set_title("Gannt chart for imported bus schedule")
+    ax.set_yticks(np.arange(len(busses))+1, labels=busses)
     ax.invert_yaxis()
+    st.pyplot(fig=fig)
     return
 
 st.title("My app")
@@ -331,8 +343,6 @@ if uploaded_timetable is not None:
     st.write(uploaded_timetable.name)
 
 if st.button("Check uploaded bus schedule") and uploaded_schedule != None and uploaded_timetable != None:
-    st.write(df_schedule.head())
-    st.write(df_timetable.head())
     check_schedule()
 
 with st.popover("Open tool settings"):
