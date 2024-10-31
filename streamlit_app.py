@@ -133,5 +133,3 @@ with st.expander("How to use"):
     st.write("Upload a planning with busses and a timetable of all bus rides that need to be accounted for, following the format specified in the user manual.")
     st.write("Change the tool settings and schedule settings, using the information in the user manual. Percentages are measured from 0-1 rather than 0%-100%.")
     st.write("Once the Excel files are uploaded and the settings are adjusted correctly, click the \"Check uploaded bus schedule\" button to verify the validity of the uploaded schedule.")
-
-st.balloons()
