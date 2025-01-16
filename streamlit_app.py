@@ -9,42 +9,42 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 # The functions to actually check stuff
-def safety_margin(battery):
-    with open('bus.json') as f:
+def safety_margin(num, battery):
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
-    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:])
+    bus = list_bus_number[num]
     string = f"bus_{bus}_soh"
     soh = bus_settings[string]
     battery_minimum = tool_settings["minimum_soc"]
     battery_maximum = tool_settings["maximum_soc"]
     if battery * soh < battery_minimum:
-        st.write(f":red[Error]: Bus {bus} reaches below required minimum battery charge during activity {activity}")
+        st.write(f":red[Error]: Bus {bus} reaches below required minimum battery charge during activity {num}")
         return False
     elif battery * soh > battery_maximum:
-        st.write(f":red[Error]: Bus {bus} above required maximum battery charge during activity {activity}")
+        st.write(f":red[Error]: Bus {bus} above required maximum battery charge during activity {num}")
         return False
     return True
 
-def validate_time(activity):
-    with open('bus.json') as f:
+def validate_time(num):
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
-    timespan = calc_time_activity(activity)
+    timespan = calc_time_activity(num)
     if timespan < 0:
         timespan = 0
-        st.write(f":orange[Warning]: activity {activity} ends before it starts (negative duration), activity ignored")
+        st.write(f":orange[Warning]: activity {num} ends before it starts (negative duration), activity ignored")
     elif timespan == 0:
-        st.write(f":orange[Warning]: activity {activity} ends at the same time as it starts (duration of 0), activity ignored")
+        st.write(f":orange[Warning]: activity {num} ends at the same time as it starts (duration of 0), activity ignored")
 
-def calc_battery(activity, prev_battery):
-    with open('bus.json') as f:
+def calc_battery(num, prev_battery):
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
-    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1])
+    bus = list_bus_number[num]
     if prev_battery == None:
         string = f"bus_{bus}_battery_start"
         prev_battery = bus_settings[string]
@@ -52,19 +52,19 @@ def calc_battery(activity, prev_battery):
     max_battery = bus_settings[string]
     string = f"bus_{bus}_soh"
     soh = bus_settings[string]
-    timespan = calc_time_activity(activity)
+    timespan = calc_time_activity(num)
     if timespan < 0:
         return battery
     string = f"bus_{bus}_custom_usage"
     if bus_settings[string] == True:
-        usage = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "usage"]).split()[1])
+        usage = list_usage[num]
     else:
-        act = str(df_schedule.loc[df_schedule["activity_number"] == activity, "activity"]).split()[1:-4]
+        act = activity[num]
         if act == bus_settings["idle_name"]:
             string = f"bus_{bus}_idle"
             usage = bus_settings[string]
         elif act == bus_settings["charge_name"]:
-            usage = -1 * calc_charging_speed(activity)
+            usage = -1 * calc_charging_speed(num)
         else:
             string = f"bus_{bus}_active"
             usage = bus_settings[string]
@@ -72,20 +72,20 @@ def calc_battery(activity, prev_battery):
     battery = prev_battery - (battery_change / (max_battery * soh))
     return battery
 
-def calc_charging_speed(activity):
-    with open('bus.json') as f:
+def calc_charging_speed(num):
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
-    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:])
+    bus = list_bus_number[num]
     string = f"bus_{bus}_custom_usage"
     if bus_settings[string] == True:
-        return float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "usage"]).split()[1:])
+        return usage[num]
     else:
-        battery = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "battery"]).split()[1:])
+        battery = list_battery[num]
         if battery <= tool_settings["optimal_charge"][1] and battery >= tool_settings["optimal_charge"][0]:
             timetil = calc_time_until_perc(bus, battery, tool_settings["optimal_charge"][1], tool_settings["charge_speed_optimal"])
-            timespan = calc_time_activity(activity)
+            timespan = calc_time_activity(num)
             if timespan <= timetil:
                 return tool_settings["charge_speed_optimal"]
             else:
@@ -95,7 +95,7 @@ def calc_charging_speed(activity):
             return tool_settings["charge_speed_suboptimal"]
         elif battery <= tool_settings["optimal_charge"][0]:
             timetil = calc_time_until_perc(bus, battery, tool_settings["optimal_charge"][0], tool_settings["charge_speed_suboptimal"])
-            timespan = calc_time_activity(activity)
+            timespan = calc_time_activity(num)
             if timespan <= timetil:
                 return tool_settings["charge_speed_suboptimal"]
             else:
@@ -103,9 +103,9 @@ def calc_charging_speed(activity):
                 return speed
 
 def calc_time_until_perc(bus, battery, charge, charge_speed):
-    with open('bus.json') as f:
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
     string = f"bus_{bus}_soh"
     soh = bus_settings[string]
@@ -115,16 +115,16 @@ def calc_time_until_perc(bus, battery, charge, charge_speed):
     timespan = dif/charge_speed
     return timespan
 
-def calc_time_activity(activity):
-    with open('bus.json') as f:
+def calc_time_activity(num):
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
-    start_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
+    start_time_list = str(list_start_time_long[num]).split()
     if len(start_time_list) == 1:
         start_time_list.append("00:00:00")
     start_time = start_time_list[0] + " " + start_time_list[1]
-    end_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1:-4]
+    end_time_list = str(list_end_time_long[num]).split()
     if len(end_time_list) == 1:
         end_time_list.append("00:00:00")
     end_time = end_time_list[0] + " " + end_time_list[1]
@@ -134,43 +134,43 @@ def calc_time_activity(activity):
     timespan = difference.total_seconds()/60/60
     return timespan
 
-def calc_charge_time_minimum(activity):
-    with open('bus.json') as f:
+def calc_charge_time_minimum(num):
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
-    bus = int(str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_number"]).split()[1:])
+    bus = list_bus_number[num]
     charging = False
     string = f"bus_{bus}_custom_usage"
     if bus_settings[string] == True:
-        usage = float(str(df_schedule.loc[df_schedule["activity_number"] == activity, "usage"]).split()[1])
+        usage = list_usage[num]
         if usage < 0:
             charging = True
         else:
             charging = False
     else:
-        act = str(df_schedule.loc[df_schedule["activity_number"] == activity, "activity"]).split()[1:-4]
+        act = list_activity_name[num]
         if act == bus_settings["charge_name"]:
             charging = True
         else:
             charging = False
     if charging == True:
-        check = calc_time_activity(activity) >= tool_settings["min_charge_time"]/60
+        check = calc_time_activity(num) >= tool_settings["min_charge_time"]/60
         if check == False:
-            st.write(f":red[Error]: Bus {bus} is charging for less than the required amount of time during activity {activity}")
+            st.write(f":red[Error]: Bus {bus} is charging for less than the required amount of time during activity {num}")
     else:
         return True
 
-def check_overlap(activity, prev_act):
-    with open('bus.json') as f:
+def check_overlap(num, prev_act):
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
-    start_time_list = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
+    start_time_list = str(list_start_time_long[num]).split()
     if len(start_time_list) == 1:
         start_time_list.append("00:00:00")
     start_time = start_time_list[0] + " " + start_time_list[1]
-    end_time_list = str(df_schedule.loc[df_schedule["activity_number"] == prev_act, "end_time_long"]).split()[1:-4]
+    end_time_list = str(list_end_time_long[num]).split()
     if len(end_time_list) == 1:
         end_time_list.append("00:00:00")
     end_time = end_time_list[0] + " " + end_time_list[1]
@@ -178,24 +178,24 @@ def check_overlap(activity, prev_act):
     end = datetime.datetime(*time.strptime(end_time, "%Y-%m-%d %H:%M:%S")[0:6])
     difference = start - end
     if difference < 0:
-        st.write(f":red[Error]: activity {activity} starts before activity {prev_act} has ended")
+        st.write(f":red[Error]: activity {num} starts before activity {prev_act} has ended")
         return False
     return True
 
 def calc_dpru_dru():
-    with open('bus.json') as f:
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
     dpru = 0
     dru = 0
-    for activity in df_schedule["activity_number"]:
-        timespan = calc_time_activity(activity)
+    for num in range(schedule_count):
+        timespan = calc_time_activity(num)
         if timespan < 0:
             timespan = 0
         dpru += timespan
         active = bus_settings["active_name"].split()
-        if str(df_schedule.loc[df_schedule["activity_number"] == activity, "activity"]).split()[1:-4] == active:
+        if list_activity_name[num] == active:
             dru += timespan
     if dru == 0:
         st.write(f":red[Error]: no activities with name \"{bus_settings['active_name']}\" found with a duration greater than 0")
@@ -211,15 +211,13 @@ def check_error(errorless, erroring):
 # Full schedule check
 def check_schedule():
     global progress_max, progress_current, check_progress
-    with open('bus.json') as f:
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
     progress_max = len(df_schedule.index) + len(df_timetable.index)
     progress_current = 0
     check_progress = st.progress(progress_current)
-    df_timetable["bus_line"].fillna(0)
-    df_timetable["index"] = range(len(df_timetable.index))
     errorless = True
     for bus in df_schedule.bus_number.unique():
         prev_act = None
@@ -244,21 +242,21 @@ def check_schedule():
         st.write("Submit a valid schedule to see the generated Gannt chart for it")
     dpru_dru = calc_dpru_dru()
     if dpru_dru != 0:
-        st.write(f"Calculated DPRU/DRU ratio: {dpru_dru} used hours per productive hour")
+        st.write(f"Calculated DPRU/DRU ratio: {dpru_dru:.2f} used hours per productive hour")
 
 # Full timetable check
 def check_timetable():
-    with open('bus.json') as f:
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
     global progress_max, progress_current, check_progress
-    for entry in df_timetable.index:
+    for val in range(timetable_count):
         satisfied = False
-        start_location = df_timetable["start_location"][entry]
-        end_location = df_timetable["end_location"][entry]
-        start_time = df_timetable["start_time"][entry]
-        bus_line = df_timetable["bus_line"][entry]
+        start_location = list2_start_location[val]
+        end_location = list2_end_location[val]
+        start_time = list2_start_time[val]
+        bus_line = list2_bus_line[val]
         for activity in df_schedule.sort_values(by="start_time_long")["activity_number"]:
             if satisfied == False:
                 start_location2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_location"]).split()[1:-4]
@@ -283,13 +281,13 @@ def check_timetable():
 
 # Create Gannt chart
 def chart():
-    with open('bus.json') as f:
+    with open('./bus.json') as f:
         bus_settings = json.load(f)
-    with open('tool.json') as f:
+    with open('./tool.json') as f:
         tool_settings = json.load(f)
     fig, ax = plt.subplots(figsize=(20, 10))
     busses = []
-    for i in range(df_schedule["bus_number"].nunique()):
+    for i in range(bus_count):
         busses.append(f"Bus {i+1}")
     max_x = datetime.datetime(*time.strptime("0001-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")[0:6])
     min_x = datetime.datetime(*time.strptime("9999-12-31 23:59:59", "%Y-%m-%d %H:%M:%S")[0:6])
@@ -324,16 +322,44 @@ def chart():
     st.pyplot(fig=fig)
     return
 
-st.title("My app")
-st.write(
-    "For help and documentation, head over to [docs.streamlit.io](https://docs.streamlit.io/)."
-)
+# Convert the dataframes to lists
+def create_lists():
+    global list_start_location, list_end_location, list_start_time, list_end_time, list_activity_name, list_bus_line, list_energy_usage, list_start_time_long, list_end_time_long, list_bus_number, list2_start_location, list2_start_time, list2_end_location, list2_bus_line, schedule_count, timetable_count, list_battery
+    # df_schedule
+    df_timetable["bus_line"].fillna(0)
+    df_schedule["bus_line"].fillna(0)
+    df_timetable["index"] = range(len(df_timetable.index))
+    #list_activity_number = df_schedule["activity_number"].to_list() # honestly no point in this, just use "i in range(count)" (see count vars below)
+    list_start_location = df_schedule["start_location"].to_list()
+    list_end_location = df_schedule["end_location"].to_list()
+    list_start_time = df_schedule["start_time"].to_list()
+    list_end_time = df_schedule["end_time"].to_list()
+    list_activity_name = df_schedule["activity_name"].to_list()
+    list_bus_line = df_schedule["bus_line"].to_list()
+    list_energy_usage = df_schedule["energy_usage"].to_list()
+    list_start_time_long = df_schedule["start_time_long"].to_list()
+    list_end_time_long = df_schedule["end_time_long"].to_list()
+    list_bus_number = df_schedule["bus_number"].to_list()
+    # df_timetable
+    list2_start_location = df_timetable["start_location"].to_list()
+    list2_start_time = df_timetable["start_time"].to_list()
+    list2_end_location = df_timetable["end_location"].to_list()
+    list2_bus_line = df_timetable["bus_line"].to_list()
+    # extra
+    schedule_count = len(list_start_location)
+    timetable_count = len(list2_start_location)
+    list_battery = [0] * schedule_count
+    # okay let's go
+    print(schedule_count)
+    check_schedule()
+
+st.title("Bus schedule checker")
 
 uploaded_schedule = st.file_uploader("Upload bus schedule (Excel)", type="xlsx")
 
 if uploaded_schedule is not None:
     global df_schedule, bus_count
-    df_schedule = pd.read_excel(uploaded_schedule, names=["activity_number", "start_location", "end_location", "start_time", "end_time", "activity", "bus_line", "energy_usage", "start_time_long", "end_time_long", "bus_number"])
+    df_schedule = pd.read_excel(uploaded_schedule, names=["activity_number", "start_location", "end_location", "start_time", "end_time", "activity_name", "bus_line", "energy_usage", "start_time_long", "end_time_long", "bus_number"])
     st.write(f"Loaded {uploaded_schedule.name}")
     bus_count = df_schedule["bus_number"].nunique()
 
@@ -343,9 +369,6 @@ if uploaded_timetable is not None:
     global df_timetable
     df_timetable = pd.read_excel(uploaded_timetable, names=["start_location", "start_time", "end_location", "bus_line"])
     st.write(f"Loaded {uploaded_timetable.name}")
-
-if st.button("Check uploaded bus schedule") and uploaded_schedule != None and uploaded_timetable != None:
-    check_schedule()
 
 with st.popover("Open tool settings"):
     tool_settings = json.loads("{}")
@@ -366,16 +389,17 @@ with st.popover("Open tool settings"):
     default_idle = st.number_input("Default usage (kWh) - idle", value=0.01, min_value=0., step=0.01)
     default_active = st.number_input("Default usage (kWh) - active", value=10.8, min_value=0., step=1.)
     default_custom_usage = st.checkbox("By default use usage values in imported Excel sheet instead of these settings")
-    with open('tool.json', 'w') as f:
+    with open('./tool.json', 'w') as f:
         json.dump(tool_settings, f)
 
 with st.popover("Open schedule settings"):
     if uploaded_schedule is not None:
         bus_settings = json.loads("{}")
         st.subheader("Activity settings")
-        bus_settings["active_name"] = st.text_input("Activity name - active (for DPRU/DRU)", value="driving")
+        bus_settings["active_name"] = st.text_input("Activity name - active (for DPRU/DRU)", value="dienst rit")
+        bus_settings["material_name"] = st.text_input("Activity name - from/to bus hub (for KPI)", value="materiaal rit")
         bus_settings["idle_name"] = st.text_input("Activity name - idling", value="idle")
-        bus_settings["charge_name"] = st.text_input("Activity name - charging", value="charging")
+        bus_settings["charge_name"] = st.text_input("Activity name - charging", value="opladen")
         st.subheader("Bus settings")
         st.write(":blue[You can change these default values in your tool settings.]")
         for i in range(bus_count):
@@ -392,10 +416,13 @@ with st.popover("Open schedule settings"):
             bus_settings[bus_string] = st.number_input(f"Bus {i+1} - Usage (kWh) - active", value=default_active, min_value=0., step=1.)
             bus_string = f"bus_{i+1}_custom_usage"
             bus_settings[bus_string] = st.checkbox(f"Bus {i+1} - use usage values in imported Excel sheet instead of these settings", value=default_custom_usage)
-        with open('bus.json', 'w') as f:
+        with open('./bus.json', 'w') as f:
             json.dump(bus_settings, f)
     else:
         st.write("Please upload a schedule first.")
+
+if st.button("Check uploaded bus schedule") and uploaded_schedule != None and uploaded_timetable != None:
+    create_lists()
 
 with st.expander("How to use"):
     st.write("Upload a planning with busses and a timetable of all bus rides that need to be accounted for, following the format specified in the user manual.")

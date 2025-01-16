@@ -17,8 +17,8 @@
             "request": "launch",
             "module": "streamlit",
             "args": [
-            "run",
-            "${file}",
+                "run",
+                "${file}",
             ]
         }
     ]
