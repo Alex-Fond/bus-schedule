@@ -386,6 +386,7 @@ def chart():
 def create_lists():
     global list_start_location, list_end_location, list_start_time, list_end_time, list_activity_name, list_bus_line, list_energy_usage, list_start_time_long, list_end_time_long, list_bus_number, list2_start_location, list2_start_time, list2_end_location, list2_bus_line, schedule_count, timetable_count, list_battery, activity_by_time, index_by_time
     df_timetable["index"] = range(len(df_timetable.index))
+    df_schedule["activity_number"] = range(len(df_schedule.index))
     # df_schedule
     #list_activity_number = df_schedule["activity_number"].to_list() # honestly no point in this, just use "i in range(count)" (see count vars below)
     list_start_location = df_schedule["start_location"].to_list()
@@ -455,7 +456,7 @@ with st.popover("Open schedule settings"):
     if uploaded_schedule is not None:
         bus_settings = json.loads("{}")
         st.subheader("Activity settings")
-        bus_settings["active_name"] = st.text_input("Activity name - active (for DPRU/DRU)", value="dienst rit")
+        bus_settings["active_name"] = st.text_input("Activity name - active trip (for DPRU/DRU)", value="dienst rit")
         bus_settings["material_name"] = st.text_input("Activity name - from/to bus hub (for KPI)", value="materiaal rit")
         bus_settings["idle_name"] = st.text_input("Activity name - idling", value="idle")
         bus_settings["charge_name"] = st.text_input("Activity name - charging", value="opladen")
