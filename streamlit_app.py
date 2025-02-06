@@ -233,6 +233,10 @@ def calc_material():
         material = bus_settings["material_name"]
         if list_activity_name[num] == material:
             count += 1
+    if count < 0:
+        count = 0
+    if count == 0:
+        st.write(f":red[Error]: no activities with name \"{bus_settings['material_name']}\" found")
     return count
 
 def check_error(errorless, erroring):
@@ -279,7 +283,8 @@ def check_schedule():
     if dpru_dru != 0:
         st.write(f"Calculated DPRU/DRU ratio: {dpru_dru:.2f} used hours per productive hour")
     count = calc_material()
-    st.write(f"Calculated KPI: {count} empty bus trips (average {count/len(df_schedule.bus_number.unique())} per bus)")
+    if count != 0:
+        st.write(f"Calculated KPI: {count} empty bus trips (average {count/len(df_schedule.bus_number.unique())} per bus)")
 
 # Full timetable check
 def check_timetable():
