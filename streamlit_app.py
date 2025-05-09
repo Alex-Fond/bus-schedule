@@ -284,7 +284,7 @@ def check_schedule():
         st.write(f"Calculated DPRU/DRU ratio: {dpru_dru:.2f} used hours per productive hour")
     count = calc_material()
     if count != 0:
-        st.write(f"Calculated KPI: {count} empty bus trips (average {count/len(df_schedule.bus_number.unique())} per bus)")
+        st.write(f"Calculated KPI: {count} empty bus trips (average {count/len(df_schedule.bus_number.unique()):.2f} per bus)")
 
 # Full timetable check
 def check_timetable():
